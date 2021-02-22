@@ -177,4 +177,8 @@ Temporary Items
 .dd_notes.py
 
 # For this project specifically
-test_data/
+test_data/*
+tiff_data/*
+general_data/*
+!general_data/*.tar.xz 
+!general_data/*.zip
