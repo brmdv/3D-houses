@@ -1,4 +1,5 @@
-"""All the necessary code for retrieving and """
+"""All the necessary code for retrieving addresses in Flanders."""
+
 import unittest
 from unittest import TestCase
 
@@ -79,6 +80,13 @@ class Address:
         # get position
         self.lambert = best_result["adresPositie"]["point"]["coordinates"]
 
+        # get building units
+        self.building_units = [
+            ob["objectId"]
+            for ob in best_result["adresseerbareObjecten"]
+            if ob["objectType"] == "gebouweenheid"
+        ]
+
     @classmethod
     def from_search(cls, q: str):
         """Create a new adress from a general search string.
@@ -121,6 +129,40 @@ class Address:
             f"{self.streetname} {self.housenumber}, {self.zipcode} {self.municipality}"
         )
 
+    def get_building_shape(self) -> geopandas.GeoSeries:
+        """The """
+        # get building ids. Most addresses point to a single building, but to account
+        # for some edges cases, we still collect all building units
+        building_ids = set()  # using a set avoids double values
+        for bu in self.building_units:
+            result = requests.get(
+                f"https://api.basisregisters.vlaanderen.be/v1/gebouweenheden/{bu}"
+            )
+            if result.ok:
+                building_ids.add(result.json()["gebouw"]["objectId"])
+            else:
+                raise RuntimeError(
+                    f"Problem retrieving building unit {bu}: status {result.status_code}"
+                )
+        # get the polygon shapes from the building ids
+        building_polygons = []
+        for bid in building_ids:
+            result = requests.get(
+                f"https://api.basisregisters.vlaanderen.be/v1/gebouwen/{bid}"
+            )
+            if result.ok:
+                building_polygons.append(
+                    Polygon(
+                        result.json()["geometriePolygoon"]["polygon"]["coordinates"][0]
+                    )
+                )
+            else:
+                raise RuntimeError(
+                    f"Problem retrieving building unit {bid}: status {result.status_code}"
+                )
+        # convert to GeoSeries with correct crs
+        return geopandas.GeoSeries(building_polygons, crs="EPSG:31370")
+
 
 def get_zone(x: float, y: float) -> int:
     """Get the number of the zone (Kaartbladversnijding) in which a given geographic point.
@@ -136,6 +178,7 @@ def get_zone(x: float, y: float) -> int:
     coord_series = geopandas.GeoSeries(Point(x, y), crs=kbv.crs)
     # Find zone with GeoPandes .contains
     zone = kbv[kbv.geometry.contains(coord_series[0])]
+    # The zone number is the first column
     return zone.iloc[0, 0]
 
 
