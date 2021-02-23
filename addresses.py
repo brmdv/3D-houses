@@ -1,9 +1,10 @@
+"""All the necessary code for retrieving and """
 import unittest
-import requests
-from requests.api import request
 from unittest import TestCase
 
-from typing_extensions import runtime_checkable
+import geopandas
+import requests
+from shapely.geometry import Point, Polygon
 
 
 class Address:
@@ -47,6 +48,11 @@ class Address:
         if result.ok:
             # select result with best score
             best_result = result.json()["adresMatches"][0]
+            if len(best_result["adresseerbareObjecten"]) == 0:
+                # A result was returned, but no concrete address
+                raise RuntimeError(
+                    "API returned a result, but no concrete address. Check whether you specified your request correctly."
+                )
             self.basisregisters_id = best_result["identificator"]["objectId"]
             # Warn user if more than one option
             if len(result.json()["adresMatches"]) > 1:
@@ -116,8 +122,28 @@ class Address:
         )
 
 
+def get_zone(x: float, y: float) -> int:
+    """Get the number of the zone (Kaartbladversnijding) in which a given geographic point.
+
+    :param x: x coordinate of the point (Lambert 72)
+    :param y: y coordinate of the point (Lambert 72)
+    """
+    # Load Shapefile with the zones
+    kbv = geopandas.read_file(
+        "zip://./general_data/Kaartbladversnijdingen.zip!Kblo.shp"
+    )
+    # Put point into GeoSeries with Lambert72 coordinates
+    coord_series = geopandas.GeoSeries(Point(x, y), crs=kbv.crs)
+    # Find zone with GeoPandes .contains
+    zone = kbv[kbv.geometry.contains(coord_series[0])]
+    return zone.iloc[0, 0]
+
+
 class TestAddressLookups(TestCase):
-    """Some unit tests for retrieving addresses."""
+    """Some unit tests for retrieving addresses.
+
+    The addresses are randomly picked for privacy reasons.
+    """
 
     def test_create_address(self):
         """Create addresses with missing data to check if they're completed correctly."""
@@ -132,6 +158,7 @@ class TestAddressLookups(TestCase):
                 "Bist 2, 2610 Antwerpen",
             )
         with self.subTest("Multiple possibilities"):
+            # There is more than one Statiestraat in Antwerpen, so it should warn the user about this
             self.assertRaises(
                 RuntimeWarning,
                 Address,
@@ -139,3 +166,18 @@ class TestAddressLookups(TestCase):
                 "10",
                 "Antwerpen",
             )
+
+    def test_lookup_address(self):
+        """Lookup a vague adresses using the Geopunt API."""
+        self.assertEqual(
+            str(Address.from_search("Bist 2 wilrijk")), "Bist 2, 2610 Antwerpen"
+        )
+
+    def test_kaartblad_selection(self):
+        """Test whether for a given coordinate, the correct zone is selected."""
+        addr = Address(
+            street="Mechelsestraat",
+            number="77",
+            municipality="Londerzeel",
+        )
+        self.assertEqual(get_zone(*addr.lambert), 23)
