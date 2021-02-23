@@ -1,6 +1,5 @@
 """All the necessary code for retrieving addresses in Flanders."""
 
-import unittest
 from unittest import TestCase
 
 import geopandas
@@ -124,15 +123,25 @@ class Address:
             raise RuntimeError(f"No address found, responde code {result.status_code}.")
 
     def __str__(self) -> str:
-        """Get adress in standard format ‘<Street name> <num>, <zipcode> <Place>’."""
+        """Get adress in standard Belgian format ‘<Street name> <num>, <zipcode> <Place>’."""
         return (
             f"{self.streetname} {self.housenumber}, {self.zipcode} {self.municipality}"
         )
 
     def get_building_shape(self) -> geopandas.GeoSeries:
-        """The """
-        # get building ids. Most addresses point to a single building, but to account
-        # for some edges cases, we still collect all building units
+        """Retrieves the polygon shapes of the outline of the buildings on this address
+        with a series of subsequent API requests. A GeoSeries is returned containing all
+        polygons.
+
+        Most addresses point to a single building, but to account for some edges cases,
+        we still collect all building units. To avoid to much API requests this method
+        saves the result in the attribute building_polygons."""
+
+        # check if already present
+        if hasattr(self.building_polygons):
+            return self.building_polygons
+
+        # First, get building ids.
         building_ids = set()  # using a set avoids double values
         for bu in self.building_units:
             result = requests.get(
@@ -161,7 +170,10 @@ class Address:
                     f"Problem retrieving building unit {bid}: status {result.status_code}"
                 )
         # convert to GeoSeries with correct crs
-        return geopandas.GeoSeries(building_polygons, crs="EPSG:31370")
+        self.building_polygons = geopandas.GeoSeries(
+            building_polygons, crs="EPSG:31370"
+        )
+        return self.building_polygons
 
 
 def get_zone(x: float, y: float) -> int:
@@ -182,6 +194,13 @@ def get_zone(x: float, y: float) -> int:
     return zone.iloc[0, 0]
 
 
+class HeightDataImage:
+    pass
+
+
+##############
+# UNIT TESTS #
+##############
 class TestAddressLookups(TestCase):
     """Some unit tests for retrieving addresses.
 
