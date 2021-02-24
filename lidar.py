@@ -1,5 +1,6 @@
 """All the necessary code for retrieving addresses in Flanders."""
 
+from pathlib import Path
 from unittest import TestCase
 
 import geopandas
@@ -190,12 +191,74 @@ def get_zone(x: float, y: float) -> int:
     coord_series = geopandas.GeoSeries(Point(x, y), crs=kbv.crs)
     # Find zone with GeoPandes .contains
     zone = kbv[kbv.geometry.contains(coord_series[0])]
-    # The zone number is the first column
+    # The zone number is the first column, and there is probably one result
     return zone.iloc[0, 0]
 
 
 class HeightDataImage:
-    pass
+    """Wrapper for GeoTIFFs of the Digital Height Model Flanders (DHMV) that are used in this project. """
+
+    def __init__(
+        self,
+        zone: int,
+        data_type: str,
+        resolution="1m",
+        dhmv_version="II",
+        path="./tiff_data",
+    ):
+        """Define a GeoTIFF file, by specifying settings.
+
+        :param zone: The number of the Kaartbladversnijdingszone.
+        :param data_type: DSM or DTM
+        :param resolution: pixel resolution of the image, defaults to "1m"
+        :param dhmv_version: version of the DIgitaal Hoogtemodel Vlaanderen, defaults to "II"
+        :param path: Base path were all the TIFFs are stored, defaults to "./tiff_data"
+        """
+        self.zone = zone
+        if data_type.upper() not in ["DTM", "DSM"]:
+            raise RuntimeWarning("Provided data_type is not DTM or DSM.")
+        self.data_type = data_type.upper()
+        self.res = resolution
+        self.dhmv_version = dhmv_version
+        self.base_path = Path(path)
+
+    def filename(self, extension=".tif") -> str:
+        """Generate base file name that is used for the data files.
+
+        :param extension: File extension, defaults to ".tif"
+        """
+        return f"DHMV{self.dhmv_version}{self.data_type}RAS{self.res}_k{self.zone}{extension}"
+
+    def download_link(self) -> str:
+        """Get the link to download this dataset."""
+        return f"https://downloadagiv.blob.core.windows.net/dhm-vlaanderen-{self.dhmv_version.lower()}-{self.data_type.lower()}-raster-{self.res}/{self.filename('.zip')}"
+
+    def is_downloaded(self) -> bool:
+        """Check if TIFF is downloaded, i.e. path exists."""
+        return (self.base_path / self.filename()).exists()
+
+    def complement(self):
+        """"""
+        if self.data_type == "DSM":
+            new_type = "DTM"
+        elif self.data_type == "DTM":
+            new_type = "DSM"
+        else:
+            raise RuntimeError("Can only flip DTM ⇋ DSM.")
+        return HeightDataImage(
+            zone=self.zone,
+            data_type=new_type,
+            resolution=self.res,
+            dhmv_version=self.dhmv_version,
+            path=str(self.base_path),
+        )
+
+    def download(self):
+        """Download the file and extract the TIFF."""
+        # TODO Download FILE
+        # TODO Extract ZIP
+
+        pass
 
 
 ##############
@@ -243,3 +306,27 @@ class TestAddressLookups(TestCase):
             municipality="Londerzeel",
         )
         self.assertEqual(get_zone(*addr.lambert), 23)
+
+
+class TestTiffHandling(TestCase):
+    """Tests for the GeoTiff class."""
+
+    def setUp(self):
+        self.dsm_file = HeightDataImage(15, "DSM", resolution="5m")
+
+    def test_link(self):
+        """Check if correct download link is generated."""
+        self.assertEqual(
+            self.dsm_file.download_link(),
+            "https://downloadagiv.blob.core.windows.net/dhm-vlaanderen-ii-dsm-raster-5m/DHMVIIDSMRAS5m_k15.zip",
+        )
+
+    def test_link_exists(self):
+        """Check if generated download link can be accessed."""
+        response = requests.head(self.dsm_file.download_link())
+        self.assertLess(response.status_code, 400)
+
+    def test_complement_creation(self):
+        """Test whether correct DTM equivalent is created."""
+        dtm_file = self.dsm_file.complement()
+        self.assertEqual(dtm_file.data_type, "DTM")
