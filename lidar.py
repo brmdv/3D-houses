@@ -1,11 +1,12 @@
-"""All the necessary code for retrieving addresses in Flanders."""
-
 from pathlib import Path
 from unittest import TestCase
 
 import geopandas
 import requests
 from shapely.geometry import Point, Polygon
+import rasterio
+from rasterio.mask import mask
+import matplotlib.pyplot as plt
 
 
 class Address:
@@ -49,7 +50,7 @@ class Address:
         if result.ok:
             # select result with best score
             best_result = result.json()["adresMatches"][0]
-            if len(best_result["adresseerbareObjecten"]) == 0:
+            if "adresPositie" not in best_result:
                 # A result was returned, but no concrete address
                 raise RuntimeError(
                     "API returned a result, but no concrete address. Check whether you specified your request correctly."
@@ -57,7 +58,7 @@ class Address:
             self.basisregisters_id = best_result["identificator"]["objectId"]
             # Warn user if more than one option
             if len(result.json()["adresMatches"]) > 1:
-                raise RuntimeWarning(
+                print(
                     f"More than one possible address found. Selected best match with a score of {result.json()['adresMatches'][0]['score']}."
                 )
         else:
@@ -139,8 +140,8 @@ class Address:
         saves the result in the attribute building_polygons."""
 
         # check if already present
-        if hasattr(self.building_polygons):
-            return self.building_polygons
+        if hasattr(self, "_building_polygons"):
+            return self._building_polygons
 
         # First, get building ids.
         building_ids = set()  # using a set avoids double values
@@ -171,10 +172,10 @@ class Address:
                     f"Problem retrieving building unit {bid}: status {result.status_code}"
                 )
         # convert to GeoSeries with correct crs
-        self.building_polygons = geopandas.GeoSeries(
+        self._building_polygons = geopandas.GeoSeries(
             building_polygons, crs="EPSG:31370"
         )
-        return self.building_polygons
+        return self._building_polygons
 
 
 def get_zone(x: float, y: float) -> int:
@@ -229,13 +230,17 @@ class HeightDataImage:
         """
         return f"DHMV{self.dhmv_version}{self.data_type}RAS{self.res}_k{self.zone}{extension}"
 
+    def full_path(self) -> Path:
+        """Returns full pathlib.Path object to image file."""
+        return self.base_path / self.filename()
+
     def download_link(self) -> str:
         """Get the link to download this dataset."""
         return f"https://downloadagiv.blob.core.windows.net/dhm-vlaanderen-{self.dhmv_version.lower()}-{self.data_type.lower()}-raster-{self.res}/{self.filename('.zip')}"
 
     def is_downloaded(self) -> bool:
         """Check if TIFF is downloaded, i.e. path exists."""
-        return (self.base_path / self.filename()).exists()
+        return self.full_path().exists()
 
     def complement(self):
         """"""
@@ -261,6 +266,60 @@ class HeightDataImage:
         pass
 
 
+class Building:
+    """All things related to plotting a single address using the data. """
+
+    def __init__(self, address: Address, auto_download: bool = False):
+        """Create a Building instance, starting from an Address.
+
+        :param address: Address of the building
+        :param auto_download: If necessary files are not locally available, they will be downloaded automatically, defaults to False
+        """
+        self.address = address
+        self.auto_download = auto_download
+
+        # choose dtm and dsm files
+        zone = get_zone(*self.address.lambert)
+        self.dsm_file = HeightDataImage(zone, "dsm")
+        self.dtm_file = self.dsm_file.complement()
+        self.dsm = None
+        self.dtm = None
+
+        # check download status
+        for file in [self.dsm_file, self.dtm_file]:
+            if not file.is_downloaded():
+                if self.auto_download:
+                    file.download()
+                else:
+                    raise RuntimeWarning(
+                        f"It seems that {file.filename()} is not downloaded yet.\nYou can get it from {file.download_link()}."
+                    )
+
+        # load image data
+        self.load_data()
+
+    def load_data(self):
+        shapes = self.address.get_building_shape()
+        # read dtm
+        with rasterio.open(self.dtm_file.full_path()) as tiffile:
+            self.dtm_data, self.shape_transform = mask(
+                tiffile, shapes, crop=True, indexes=1
+            )
+        # read dsm, transform shuold be same as dtm, so ignore
+        with rasterio.open(self.dsm_file.full_path()) as tiffile:
+            self.dsm_data, _ = rasterio.mask.mask(tiffile, shapes, crop=True, indexes=1)
+
+        # calculate chm
+        self.chm_data = self.dsm_data - self.dtm_data
+
+
+t_adr = Building(Address(street="Handschoenmarkt", number=5, zipcode=2000))
+plt.imshow(t_adr.chm_data)
+plt.colorbar()
+plt.savefig("chm.png")
+# t_adr = Building(Address(street="Veldstraat", number=2, municipality="Gent"))
+
+pass
 ##############
 # UNIT TESTS #
 ##############
@@ -270,27 +329,27 @@ class TestAddressLookups(TestCase):
     The addresses are randomly picked for privacy reasons.
     """
 
+    def setUp(self):
+        self.random_address = Address(street="Grote Markt", number=5, zipcode=2000)
+
     def test_create_address(self):
         """Create addresses with missing data to check if they're completed correctly."""
         with self.subTest("No municipity"):
-            self.assertEqual(
-                str(Address(street="Grote Markt", number=5, zipcode=2000)),
-                "Grote Markt 5, 2000 Antwerpen",
-            )
+            self.assertEqual(str(self.random_address), "Grote Markt 5, 2000 Antwerpen")
         with self.subTest("No zipcode"):
             self.assertEqual(
                 str(Address(street="Bist", number=2, municipality="Antwerpen")),
                 "Bist 2, 2610 Antwerpen",
             )
-        with self.subTest("Multiple possibilities"):
-            # There is more than one Statiestraat in Antwerpen, so it should warn the user about this
-            self.assertRaises(
-                RuntimeWarning,
-                Address,
-                "Statiestraat",
-                "10",
-                "Antwerpen",
-            )
+        # with self.subTest("Multiple possibilities"):
+        #     # There is more than one Statiestraat in Antwerpen, so it should warn the user about this
+        #     self.assertRaises(
+        #         RuntimeWarning,
+        #         Address,
+        #         "Statiestraat",
+        #         "10",
+        #         "Antwerpen",
+        #     )
 
     def test_lookup_address(self):
         """Lookup a vague adresses using the Geopunt API."""
@@ -298,14 +357,13 @@ class TestAddressLookups(TestCase):
             str(Address.from_search("Bist 2 wilrijk")), "Bist 2, 2610 Antwerpen"
         )
 
+    def test_building_shape(self):
+        """Test if a polygon for the buildings is found."""
+        self.assertGreater(self.random_address.get_building_shape().area, 0)
+
     def test_kaartblad_selection(self):
         """Test whether for a given coordinate, the correct zone is selected."""
-        addr = Address(
-            street="Mechelsestraat",
-            number="77",
-            municipality="Londerzeel",
-        )
-        self.assertEqual(get_zone(*addr.lambert), 23)
+        self.assertEqual(get_zone(*self.random_address.lambert), 15)
 
 
 class TestTiffHandling(TestCase):
