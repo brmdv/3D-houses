@@ -1,13 +1,13 @@
 # 3D houses from LiDAR data
 
-In this project, the goal is to 
+In this project, the goal is to create a #D plot of a house, anywere in Flanders.
 
 ## About the data
 The data that is used is sourced from the second edition of the “_Digitaal Hoogtemodel Vlaanderen_” ([DHMV II](https://overheid.vlaanderen.be/informatie-vlaanderen/producten-diensten/digitaal-hoogtemodel-dhmv)) from AGIV. 
 It consists of 
 
 ### DSM, DTM and CHM
-The data that is used is sourced from 
+The data that is used is sourced from [AGIV](https://agiv.be), […]. 
 
 * **Versnijdingen**: https://download.vlaanderen.be/Producten/Detail?id=111&title=Kaartbladversnijdingen_NGI_klassieke_reeks#
   [[https://download.vlaanderen.be/Producten/getImage/4421/
@@ -23,5 +23,34 @@ All the address-related code is in the class `Address`.
 On initialization the user specifies the address 
 
 ### Preparing the LiDAR data
+
+
 ### Creating a 3D plot
+I used Matplotlib for the 3D plots. 
+
+
 ## How to use
+There is an **example** plot in [a Jupyter Notebook](Example.ipynb). 
+
+The **basic steps** to get to plotting are:
+  1. Retrieve the address with an `Address` object. This can be done by filling in the `street`, `number` and `zipcode`/`municipality` arguments. Or, with a small sidestep, you can use the classmethod `Address.from_search()` to look up a more arbitrary address string.
+  2. Create a `Building` object, with this address. The class handles then all the data internally, i.e. 
+
+     - finding the right _Kaartbladversnijding_ zone,
+     - checking if the GeoTIFFs are available locally
+     - downloading them if needed, 
+     - masking 
+
+  3. 
+
+
+There are also some unit tests, mainly for address lookups, in [tests.py](tests.py). Run with 
+```sh 
+python -m unittest tests.py
+```
+
+### Necessary packages
+This project uses 
+
+The easiest way to get this working is with a new Anaconda environment.
+```conda create houses ```
