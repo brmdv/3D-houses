@@ -423,11 +423,11 @@ class Building:
         ax = plt.axes(projection="3d", zlabel=f"{kind.upper()} [m]")
         # meshgrid for X and Y
         X, Y = mgrid[: data.shape[0], : data.shape[1]]
-        ax.plot_surface(X, Y, data, color="lightgrey", *args, **kwargs)
+        ax.plot_surface(X, Y, data, *args, **kwargs)
         plt.title(f"{kind.upper()} of {self.address}")
         plt.xlabel("x [m]")
         plt.ylabel("y [m]")
         # Make shure that scale is same in all dimensions to avoid weird shapes
-        ax.set_yscale(ax.get_xscale())
-        ax.set_zscale(ax.get_xscale())
+        ax.set_ylim(ax.get_xlim())
+        ax.set_zlim(ax.get_xlim())
         return fig, ax
