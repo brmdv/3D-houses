@@ -9,8 +9,13 @@ It consists of
 ### DSM, DTM and CHM
 The data that is used is sourced from [AGIV](https://agiv.be), […]. 
 
-* **Versnijdingen**: https://download.vlaanderen.be/Producten/Detail?id=111&title=Kaartbladversnijdingen_NGI_klassieke_reeks#
-  [[https://download.vlaanderen.be/Producten/getImage/4421/
+[…]
+
+
+
+* The data is divided in zones, as show below. These so-called **Kaartbladversnijdingen**: <https://download.vlaanderen.be/Producten/Detail?id=111&title=Kaartbladversnijdingen_NGI_klassieke_reeks#>
+
+  <img  src="https://download.vlaanderen.be/Producten/getImage/4421/">
 
 ## Technical details
 ### Retrieving the address
@@ -41,7 +46,7 @@ The **basic steps** to get to plotting are:
      - downloading them if needed, 
      - masking 
 
-  3. 
+  3.
 
 
 There are also some unit tests, mainly for address lookups, in [tests.py](tests.py). Run with 
