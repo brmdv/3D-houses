@@ -1,3 +1,4 @@
+from os import remove
 from pathlib import Path
 from subprocess import run
 from typing import Tuple
@@ -8,9 +9,10 @@ import geopandas
 import matplotlib.pyplot as plt
 import rasterio
 import requests
+from mpl_toolkits import mplot3d
+from numpy import mgrid
 from rasterio.mask import mask
 from shapely.geometry import Point, Polygon
-from os import remove
 
 download_manager = None
 
@@ -386,17 +388,50 @@ class Building:
         self.chm_data = self.dsm_data - self.dtm_data
 
     def plot_image(self, kind="CHM", *args, **kwargs) -> Tuple[plt.Figure, plt.axis]:
+        # Select what to plot
+        if kind.upper() == "CHM":
+            data = self.chm_data
+        elif kind.upper() == "DSM":
+            data = self.dsm_data
+        elif kind.upper() == "DTM":
+            data = self.dtm_data
+        else:
+            raise RuntimeError(f"Kind {kind} not available.")
+
+        # Plot with MPL
         fig, ax = plt.subplots()
-        ax.imshow(self.chm_data, **kwargs)
-        ax.colorbar()
+        plt.imshow(data, *args, **kwargs)
+        plt.colorbar(label="Height [m]")
+        plt.title(f"{kind.upper()} of {self.address}")
+        plt.xlabel("x [m]")
+        plt.ylabel("y [m]")
+        # TODO use coordinates in stead → something with transformation matrix
         return fig, ax
 
+    def plot3d(self, kind="chm", *args, **kwargs) -> Tuple[plt.Figure, plt.axis]:
+        # Select what to plot
+        if kind.upper() == "CHM":
+            data = self.chm_data
+        elif kind.upper() == "DSM":
+            data = self.dsm_data
+        elif kind.upper() == "DTM":
+            data = self.dtm_data
+        else:
+            raise RuntimeError(f"Kind {kind} not available.")
 
-# t_adr = Building(Address(street="Handschoenmarkt", number=5, zipcode=2000))
-# fig, ax = plt.subplots(figsize=(15, 8))
-# ax = t_adr.plot_image(cmap="coolwarm")
-# plt.savefig("test_chm.png")
-t_adr = Building(Address.from_search("Groenestraat 11, Heuvelland"), auto_download=True)
+        # #D Surface plot with MPL
+        fig = plt.figure()
+        ax = plt.axes(projection="3d", zlabel=f"{kind.upper()} [m]")
+        # meshgrid for X and Y
+        X, Y = mgrid[: data.shape[0], : data.shape[1]]
+        ax.plot_surface(X, Y, data, color="lightgrey", *args, **kwargs)
+        plt.title(f"{kind.upper()} of {self.address}")
+        plt.xlabel("x [m]")
+        plt.ylabel("y [m]")
+        # Make shure that scale is same in all dimensions to avoid weird shapes
+        ax.set_yscale(ax.get_xscale())
+        ax.set_zscale(ax.get_xscale())
+        return fig, ax
 
 
 pass
