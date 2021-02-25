@@ -1,15 +1,16 @@
 from pathlib import Path
+from subprocess import run
 from typing import Tuple
 from unittest import TestCase
+from zipfile import ZipFile
 
 import geopandas
-import requests
-from shapely.geometry import Point, Polygon
-import rasterio
-from rasterio.mask import mask
 import matplotlib.pyplot as plt
-
-from subprocess import run
+import rasterio
+import requests
+from rasterio.mask import mask
+from shapely.geometry import Point, Polygon
+from os import remove
 
 download_manager = None
 
@@ -107,6 +108,8 @@ class Address:
             "https://loc.geopunt.be/geolocation/location", params={"q": q}
         )
         if result.ok:
+            if len(result.json()["LocationResult"]) == 0:
+                raise RuntimeWarning("No address found with GeoPunt API.")
             res = result.json()["LocationResult"][0]
             addr = cls(
                 zipcode=res["Zipcode"],
@@ -263,8 +266,11 @@ class HeightDataImage:
             path=str(self.base_path),
         )
 
-    def download(self):
-        """Download the file and extract the TIFF."""
+    def download(self, keep_zip: bool = False):
+        """Download the file and extract the TIFF.
+
+        :param keep_zip: Whether to keep the zip-archive that holds the tiff, defaults to False
+        """
         global download_manager
         # if not set, find which program is available for downloading the files
         if not download_manager:
@@ -318,9 +324,15 @@ class HeightDataImage:
         else:
             raise RuntimeError(f"Unsupported download manager: {download_manager}.")
 
-        # TODO Extract ZIP
+        # EXTRACT ZIP
+        with ZipFile(self.full_path(".zip"), "r") as zipf:
+            with open(self.full_path(), "wb") as tifout:
+                tifout.write(zipf.read(f"GeoTIFF/{self.filename()}"))
 
-        pass
+        # CLEANUP
+        if not keep_zip and self.full_path().exists():
+            remove(self.full_path(".zip"))
+            print(f"Downloaded file {self.full_path('.zip')} is deleted.")
 
 
 class Building:
@@ -349,7 +361,7 @@ class Building:
                     file.download()
                 else:
                     print(
-                        f"It seems that {file.filename()} is not downloaded yet.\nYou can get it from {file.get_download_link()}."
+                        f"It seems that {file.filename()} is not downloaded yet.\nYou can get it from {file.get_download_link()} or with the method Building.download()."
                     )
 
         # load image data
@@ -384,11 +396,8 @@ class Building:
 # fig, ax = plt.subplots(figsize=(15, 8))
 # ax = t_adr.plot_image(cmap="coolwarm")
 # plt.savefig("test_chm.png")
-# t_adr = Building(Address.from_search("Scheurdekousweg 2 hoogstraten"))
-# download_manager = "requests"
-test_tif = HeightDataImage(36, "dtm")
-test_tif.download()
-# t_adr.dsm_file.download()
+t_adr = Building(Address.from_search("Groenestraat 11, Heuvelland"), auto_download=True)
+
 
 pass
 ##############
