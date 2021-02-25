@@ -12,7 +12,8 @@ The **basic steps** to get to plotting are:
      - finding the right _Kaartbladversnijding_ zone,
      - checking if the GeoTIFFs are available locally
      - downloading them if needed, 
-     - masking 
+     - masking the shape of the building
+     - calculating the canopy height model
 
   3. Plot the data. You can either make a 3D plot, with `Building.plot3D()`, or a flat color-coded image with `Building.plot_image()`.
 
@@ -23,10 +24,14 @@ python -m unittest tests.py
 ```
 
 ### Necessary packages
-This project uses 
+This project uses [Rasterio](), [GeoPandas](), [numpy](), [Matplotlib](), [requests](). 
 
-The easiest way to get this working is with a new Anaconda environment.
-```conda create houses ```
+The easiest way to get this working is with a new Anaconda environment. This should give you all you need (I hope). 
+```sh
+conda create --name houses -c conda-forge python>=3.8 matplotlib rasterio geopandas requests numpy
+
+conda activate houses
+```
 
 ## About the data
 The data that is used is sourced from the second edition of the “_Digitaal Hoogtemodel Vlaanderen_” ([DHMV II](https://overheid.vlaanderen.be/informatie-vlaanderen/producten-diensten/digitaal-hoogtemodel-dhmv)) from AGIV. 
@@ -34,6 +39,10 @@ It consists of
 
 ### DSM, DTM and CHM
 The data that is used is sourced from [AGIV](https://agiv.be), […]. 
+
+* **DSM**:
+* **DTM**:
+* **CHM**: 
 
 […]
 
