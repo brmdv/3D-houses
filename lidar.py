@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Tuple
 from unittest import TestCase
 
 import geopandas
@@ -7,6 +8,10 @@ from shapely.geometry import Point, Polygon
 import rasterio
 from rasterio.mask import mask
 import matplotlib.pyplot as plt
+
+from subprocess import run
+
+download_manager = None
 
 
 class Address:
@@ -228,13 +233,13 @@ class HeightDataImage:
 
         :param extension: File extension, defaults to ".tif"
         """
-        return f"DHMV{self.dhmv_version}{self.data_type}RAS{self.res}_k{self.zone}{extension}"
+        return f"DHMV{self.dhmv_version}{self.data_type}RAS{self.res}_k{self.zone:02d}{extension}"
 
-    def full_path(self) -> Path:
+    def full_path(self, extension=".tif") -> Path:
         """Returns full pathlib.Path object to image file."""
-        return self.base_path / self.filename()
+        return self.base_path / self.filename(extension=extension)
 
-    def download_link(self) -> str:
+    def get_download_link(self) -> str:
         """Get the link to download this dataset."""
         return f"https://downloadagiv.blob.core.windows.net/dhm-vlaanderen-{self.dhmv_version.lower()}-{self.data_type.lower()}-raster-{self.res}/{self.filename('.zip')}"
 
@@ -260,7 +265,59 @@ class HeightDataImage:
 
     def download(self):
         """Download the file and extract the TIFF."""
-        # TODO Download FILE
+        global download_manager
+        # if not set, find which program is available for downloading the files
+        if not download_manager:
+            download_manager = "requests"
+            for app in ["aria2c", "wget"]:
+                # check if aria2 downloader is available, it
+                check = run([app, "--version"], capture_output=True)
+                if check.returncode == 0:
+                    download_manager = app
+                    break
+
+        # DOWNLOAD THE FILE
+        if download_manager == "aria2c":
+            # aria2c available, use it
+            run(
+                [
+                    "aria2c",
+                    "-s",
+                    "5",
+                    "-c",
+                    self.get_download_link(),
+                    "-o",
+                    str(self.full_path(".zip")),
+                    "--file-allocation=none",
+                ]
+            )
+        elif download_manager == "wget":
+            # wget available, use it. The -c option is to continue download if it was
+            # previously interrupted. However, I didn't get it to work properly
+            run(
+                [
+                    "wget",
+                    "-c",
+                    self.get_download_link(),
+                    "-P",
+                    self.full_path(".zip"),
+                ]
+            )
+        elif download_manager == "requests":
+            # Use requests to download data, not preferable because no support for
+            # continuing failed downloads, verifying etc. If file is already present, it
+            # will be overwritten. Code adapted from
+            # https://stackoverflow.com/questions/16694907/download-large-file-in-python-with-requests
+            print(f"Downloading {self.filename('.zip')} with requests…")
+            with requests.get(self.get_download_link(), stream=True) as r:
+                r.raise_for_status()
+                print(f"Filesize: {int(r.headers['Content-length'])//1_000_000} MB")
+                with open(self.full_path(".zip"), "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+        else:
+            raise RuntimeError(f"Unsupported download manager: {download_manager}.")
+
         # TODO Extract ZIP
 
         pass
@@ -291,14 +348,18 @@ class Building:
                 if self.auto_download:
                     file.download()
                 else:
-                    raise RuntimeWarning(
-                        f"It seems that {file.filename()} is not downloaded yet.\nYou can get it from {file.download_link()}."
+                    print(
+                        f"It seems that {file.filename()} is not downloaded yet.\nYou can get it from {file.get_download_link()}."
                     )
 
         # load image data
-        self.load_data()
+        if self.dsm_file.is_downloaded() and self.dtm_file.is_downloaded():
+            self.load_data()
 
     def load_data(self):
+        """(Re)load the DTM and DSM data from the TIFF files. The CHM (Canopy Height
+        Model) is also caculated.
+        """
         shapes = self.address.get_building_shape()
         # read dtm
         with rasterio.open(self.dtm_file.full_path()) as tiffile:
@@ -312,12 +373,22 @@ class Building:
         # calculate chm
         self.chm_data = self.dsm_data - self.dtm_data
 
+    def plot_image(self, kind="CHM", *args, **kwargs) -> Tuple[plt.Figure, plt.axis]:
+        fig, ax = plt.subplots()
+        ax.imshow(self.chm_data, **kwargs)
+        ax.colorbar()
+        return fig, ax
 
-t_adr = Building(Address(street="Handschoenmarkt", number=5, zipcode=2000))
-plt.imshow(t_adr.chm_data)
-plt.colorbar()
-plt.savefig("chm.png")
-# t_adr = Building(Address(street="Veldstraat", number=2, municipality="Gent"))
+
+# t_adr = Building(Address(street="Handschoenmarkt", number=5, zipcode=2000))
+# fig, ax = plt.subplots(figsize=(15, 8))
+# ax = t_adr.plot_image(cmap="coolwarm")
+# plt.savefig("test_chm.png")
+# t_adr = Building(Address.from_search("Scheurdekousweg 2 hoogstraten"))
+# download_manager = "requests"
+test_tif = HeightDataImage(36, "dtm")
+test_tif.download()
+# t_adr.dsm_file.download()
 
 pass
 ##############
@@ -375,13 +446,13 @@ class TestTiffHandling(TestCase):
     def test_link(self):
         """Check if correct download link is generated."""
         self.assertEqual(
-            self.dsm_file.download_link(),
+            self.dsm_file.get_download_link(),
             "https://downloadagiv.blob.core.windows.net/dhm-vlaanderen-ii-dsm-raster-5m/DHMVIIDSMRAS5m_k15.zip",
         )
 
     def test_link_exists(self):
         """Check if generated download link can be accessed."""
-        response = requests.head(self.dsm_file.download_link())
+        response = requests.head(self.dsm_file.get_download_link())
         self.assertLess(response.status_code, 400)
 
     def test_complement_creation(self):

@@ -182,3 +182,4 @@ tiff_data/*
 general_data/*
 !general_data/*.tar.xz 
 !general_data/*.zip
+test_*.png
