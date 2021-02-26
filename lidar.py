@@ -252,7 +252,7 @@ class HeightDataImage:
         return self.full_path().exists()
 
     def complement(self):
-        """"""
+        """Get the complementary HeightDataImage, so DTM ⇋ DSM."""
         if self.data_type == "DSM":
             new_type = "DTM"
         elif self.data_type == "DTM":
