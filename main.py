@@ -1,4 +1,1 @@
-from house import DHMVFile as Tif
-
-test = Tif("../geo_playing/test_data/DHMVIIDSMRAS1m_k04.tif")
-pass
+/annex/objects/SHA256E-s101--a1174eb12f4ca2d1dcc546c102aca57bf66d8d356f936dbe7485375a352329e4.py
