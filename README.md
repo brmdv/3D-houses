@@ -1,6 +1,6 @@
 # 3D houses from LiDAR data
 
-In this project, the goal is to create a #D plot of a house, anywere in Flanders.
+In this project, the goal is to create a 3D plot of a house, anywhere in Flanders.
 
 ## How to use
 There is an **example** plot in [a Jupyter Notebook](Example.ipynb). 
@@ -28,8 +28,9 @@ This project uses [Rasterio](), [GeoPandas](), [numpy](), [Matplotlib](), [reque
 
 The easiest way to get this working is with a new Anaconda environment. This should give you all you need (I hope). 
 ```sh
+# Create a new conda env, named "houses"
 conda create --name houses -c conda-forge python>=3.8 matplotlib rasterio geopandas requests numpy
-
+# activate the env wbefore running the script
 conda activate houses
 ```
 
@@ -63,7 +64,7 @@ All the address-related code is in the class `Address`.
 On initialization the user specifies the address 
 
 ### Preparing the LiDAR data
-
+TODO
 
 ### Creating a 3D plot
 I used Matplotlib for the 3D plots. 
