@@ -45,24 +45,19 @@ conda activate houses
 
 ## About the data
 
-The data that is used is sourced from the second edition of the “_Digitaal Hoogtemodel Vlaanderen_” ([DHMV II](https://overheid.vlaanderen.be/informatie-vlaanderen/producten-diensten/digitaal-hoogtemodel-dhmv)) from AGIV.
-It consists of
+- The data that is used is sourced from the second edition of the “_Digitaal Hoogtemodel Vlaanderen_” ([DHMV II](https://overheid.vlaanderen.be/informatie-vlaanderen/producten-diensten/digitaal-hoogtemodel-dhmv)) from AGIV.
 
-### DSM, DTM and CHM
+- The data that is used is sourced from [AGIV](https://overheid.vlaanderen.be/informatie-vlaanderen), a collection of data of Flanders, Belgium, that is freely available.
 
-The data that is used is sourced from [AGIV](https://overheid.vlaanderen.be/informatie-vlaanderen), a collection of data of Flanders, Belgium, that is freely available (for its inhabitants?).
+  - **DSM**: _Digital Surface Model_. The height, including buildings.
+  - **DTM**: _Digital Terrain Model_. The 
+  - **CHM**: _Canopy Height Model_, DSM - DTM. **What we are interested in**, and what needs to be calculated from the data.
 
-- **DSM**:
-- **DTM**:
-- **CHM**:
-
-[…]
-
-- The data is divided in zones, as show below. These so-called **[Kaartbladversnijdingen](https://download.vlaanderen.be/Producten/Detail?id=111&title=Kaartbladversnijdingen_NGI_klassieke_reeks#)**: 
+- The TIFF data is divided in zones, as show below. These so-called **[Kaartbladversnijdingen](https://download.vlaanderen.be/Producten/Detail?id=111&title=Kaartbladversnijdingen_NGI_klassieke_reeks#)**: 
 
   ![Kaartbladversnijdingen](https://download.vlaanderen.be/Producten/getImage/4421/)
 
-- For each of these part, a large GeoTiff file with the height data can be downloaded.
+- For each of these part, a two large GeoTiff files with the DSM and DTM data can be downloaded. 
 
 ## Technical details
 
